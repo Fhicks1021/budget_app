@@ -1,28 +1,21 @@
 use axum::{
     extract::State,
-    routing::{get, post},
     response::Html,
-    Form, Router,
+    Form,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use std::fs;
 
 #[derive(Deserialize)]
-struct BudgetInput {
-    paycheck: Option<f64>,
-    mortgage: Option<f64>,
-    electric: Option<f64>,
-    phone: Option<f64>,
-    internet: Option<f64>,
-    car_insurance: Option<f64>,
+pub struct BudgetInput {
+    pub paycheck: Option<f64>,
+    pub mortgage: Option<f64>,
+    pub electric: Option<f64>,
+    pub phone: Option<f64>,
+    pub internet: Option<f64>,
+    pub car_insurance: Option<f64>,
 }
-
-// #[derive(Serialize)]
-// struct Category {
-//     name: String,
-//     amount: f64,
-// }
 
 struct ComputedBudget {
     paycheck: f64,
@@ -34,33 +27,7 @@ struct ComputedBudget {
     remaining: f64,
 }
 
-pub fn router() -> Router<PgPool> {
-    Router::new()
-        .route("/", get(index_page))
-        .route("/budget", post(handle_budget))
-        .route("/styles.css", get(styles))
-        .route("/theme.js", get(theme_js))
-}
-
-// --------- Handlers ---------
-
-async fn index_page() -> Html<String> {
-    let html = fs::read_to_string("static/budget/html/index.html")
-        .unwrap_or_else(|_| "<h1>index.html missing</h1>".to_string());
-    Html(html)
-}
-
-async fn styles() -> String {
-    fs::read_to_string("static/budget/css/styles.css")
-        .unwrap_or_else(|_| "/* styles.css missing */".to_string())
-}
-
-async fn theme_js() -> String {
-    fs::read_to_string("static/budget/js/theme.js")
-        .unwrap_or_else(|_| "// theme.js missing".to_string())
-}
-
-async fn handle_budget(
+pub async fn handle_budget(
     State(pool): State<PgPool>,
     Form(input): Form<BudgetInput>,
 ) -> Html<String> {
@@ -103,7 +70,7 @@ async fn handle_budget(
     Html(page)
 }
 
-async fn save_budget_to_db(pool: &PgPool, b: &ComputedBudget) -> Result<(), sqlx::Error> {
+async fn save_budget_to_db(pool: &PgPool, computed: &ComputedBudget) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let row = sqlx::query(
@@ -113,24 +80,24 @@ async fn save_budget_to_db(pool: &PgPool, b: &ComputedBudget) -> Result<(), sqlx
         RETURNING id
         "#,
     )
-    .bind(b.paycheck)
-    .bind(b.mortgage)
-    .bind(b.electric)
-    .bind(b.phone)
-    .bind(b.internet)
-    .bind(b.car_insurance)
-    .bind(b.remaining)
+    .bind(computed.paycheck)
+    .bind(computed.mortgage)
+    .bind(computed.electric)
+    .bind(computed.phone)
+    .bind(computed.internet)
+    .bind(computed.car_insurance)
+    .bind(computed.remaining)
     .fetch_one(&mut *tx)
     .await?;
 
     let budget_id: i32 = row.get("id");
 
     let categories = vec![
-        ("Mortgage", b.mortgage),
-        ("Electric", b.electric),
-        ("Phone", b.phone),
-        ("Internet", b.internet),
-        ("Car Insurance", b.car_insurance),
+        ("Mortgage", computed.mortgage),
+        ("Electric", computed.electric),
+        ("Phone", computed.phone),
+        ("Internet", computed.internet),
+        ("Car Insurance", computed.car_insurance),
     ];
 
     for (name, amount) in categories {

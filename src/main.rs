@@ -1,7 +1,6 @@
-mod budget;
+mod routes;
 
 use dotenvy::dotenv;
-use axum::Router;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 
@@ -16,7 +15,7 @@ async fn main() {
 
     println!("Connected to Postgres!");
 
-    let app = budget::router().with_state(pool);
+    let app = routes::router().with_state(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Server running at http://{addr}");
