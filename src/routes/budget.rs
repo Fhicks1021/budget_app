@@ -9,11 +9,17 @@ use std::fs;
 
 #[derive(Deserialize)]
 pub struct BudgetInput {
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub paycheck: Option<f64>,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub mortgage: Option<f64>,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub electric: Option<f64>,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub phone: Option<f64>,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub internet: Option<f64>,
+    #[serde(deserialize_with = "empty_string_as_none")]
     pub car_insurance: Option<f64>,
 }
 
@@ -25,6 +31,21 @@ struct ComputedBudget {
     internet: f64,
     car_insurance: f64,
     remaining: f64,
+}
+
+fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    Ok(match s {
+        None => None,
+        Some(ref v) if v.trim().is_empty() => None,
+        Some(v) => v
+            .parse::<f64>()
+            .map(Some)
+            .map_err(serde::de::Error::custom)?,
+    })
 }
 
 pub async fn handle_budget(
