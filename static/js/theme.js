@@ -1,11 +1,9 @@
 const THEME_KEY = "budget_app_theme";
 
 function applyTheme(theme) {
-  // Put the theme on <body>, since CSS is watching body[data-theme=...]
   document.body.setAttribute("data-theme", theme);
 }
 
-// Run on script load (defer makes this safe once <body> exists)
 (function initTheme() {
   const stored = localStorage.getItem(THEME_KEY);
 
