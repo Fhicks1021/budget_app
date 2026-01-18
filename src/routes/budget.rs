@@ -76,7 +76,7 @@ pub async fn handle_budget(
         eprintln!("Failed to save budget to DB: {e}");
     }
 
-    let template = fs::read_to_string("static/budget/html/result.html")
+    let template = fs::read_to_string("templates/budget_result.html")
         .unwrap_or_else(|_| "<h1>result.html missing</h1>".to_string());
 
     let page = template

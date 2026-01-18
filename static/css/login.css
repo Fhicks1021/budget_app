@@ -15,7 +15,7 @@ body {
     max-width: 420px;
     padding: 2.5rem 2rem;
     border-radius: 1rem;
-    background: rgba(15, 23, 42, 0.92);
+    /* background: rgba(15, 23, 42, 0.92); */
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
     border: 1px solid rgba(148, 163, 184, 0.3);
 }
