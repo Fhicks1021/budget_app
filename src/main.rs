@@ -1,4 +1,5 @@
 mod routes;
+mod auth;
 
 use dotenvy::dotenv;
 use sqlx::PgPool;
@@ -15,7 +16,7 @@ async fn main() {
 
     println!("Connected to Postgres!");
 
-    let app = routes::router().with_state(pool);
+    let app = routes::router(pool);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Server running at http://{addr}");

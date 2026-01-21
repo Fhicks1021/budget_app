@@ -3,9 +3,12 @@ use axum::{
     response::Html,
     Form,
 };
+use axum::response::Redirect;
 use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use std::fs;
+use crate::auth::require_user;
+use axum_extra::extract::CookieJar;
 
 #[derive(Deserialize)]
 pub struct BudgetInput {
@@ -49,9 +52,12 @@ where
 }
 
 pub async fn handle_budget(
+    jar: CookieJar,
     State(pool): State<PgPool>,
     Form(input): Form<BudgetInput>,
-) -> Html<String> {
+) -> Result<Html<String>, Redirect> {
+    let _user_id = require_user(&jar)?;
+
     let paycheck = input.paycheck.unwrap_or(0.0);
     let mortgage = input.mortgage.unwrap_or(0.0);
     let electric = input.electric.unwrap_or(0.0);
@@ -88,7 +94,7 @@ pub async fn handle_budget(
         .replace("{{car_insurance}}", &format!("{:.2}", computed.car_insurance))
         .replace("{{remaining}}", &format!("{:.2}", computed.remaining));
 
-    Html(page)
+    Ok(Html(page))
 }
 
 async fn save_budget_to_db(pool: &PgPool, computed: &ComputedBudget) -> Result<(), sqlx::Error> {
@@ -96,7 +102,7 @@ async fn save_budget_to_db(pool: &PgPool, computed: &ComputedBudget) -> Result<(
 
     let row = sqlx::query(
         r#"
-        INSERT INTO budgets (paycheck, mortgage, electric, phone, internet, car_insurance, remaining)
+        INSERT INTO budget (paycheck, mortgage, electric, phone, internet, car_insurance, remaining)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
         "#,

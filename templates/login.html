@@ -21,7 +21,6 @@
         </p>
       </header>
 
-      <!-- This will eventually POST to your /login route in Axum -->
       <form method="post" action="/login">
         <div class="field">
           <label for="email">Email</label>
@@ -52,7 +51,6 @@
         <div class="auth-actions">
           <button type="submit" class="btn-primary">Log in</button>
 
-          <!-- This can later just link to the existing budget form page -->
           <button
             type="button"
             class="btn-ghost"
@@ -63,8 +61,7 @@
 
       <footer class="auth-footer">
         <span>New here?</span>
-        <!-- later this can go to a /register page -->
-        <a href="#">Create an account</a>
+        <a href="/register">Create an account</a>
       </footer>
     </main>
   </body>
