@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use std::fs;
 use tower_http::services::ServeDir;
 
-use crate::auth::{login_submit, register_submit, refresh_session, require_user};
+use crate::auth::{login_submit, register_submit, refresh_session, logout_submit, require_user};
 
 mod budget;
 
@@ -19,6 +19,7 @@ pub fn router(pool: PgPool) -> Router {
         .route("/budget", get(budget_page))
         .route("/handle_budget", post(budget::handle_budget))
         .route("/auth/refresh", get(refresh_session))
+        .route("/auth/logout", get(logout_submit))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool)
 }
