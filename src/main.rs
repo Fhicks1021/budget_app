@@ -1,5 +1,5 @@
-mod routes;
 mod auth;
+mod routes;
 
 use dotenvy::dotenv;
 use sqlx::PgPool;
