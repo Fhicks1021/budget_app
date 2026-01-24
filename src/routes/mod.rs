@@ -19,6 +19,7 @@ pub fn router(pool: PgPool) -> Router {
         .route("/budget", get(budget_page))
         .route("/handle_budget", post(budget::handle_budget))
         .route("/auth/refresh", get(refresh_session))
+        .route("/auth/forgot-password", get(forgot_password))
         .route("/auth/logout", get(logout_submit))
         .nest_service("/static", ServeDir::new("static"))
         .with_state(pool)
@@ -41,6 +42,12 @@ async fn login_page() -> Html<String> {
 
 async fn register_page() -> Html<String> {
     let html = std::fs::read_to_string("templates/register.html")
+        .unwrap_or_else(|_| "<h1>register.html missing</h1>".to_string());
+    Html(html)
+}
+
+async fn forgot_password() -> Html<String> {
+    let html = std::fs::read_to_string("templates/forgot_password.html")
         .unwrap_or_else(|_| "<h1>register.html missing</h1>".to_string());
     Html(html)
 }
