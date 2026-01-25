@@ -2,6 +2,7 @@ use axum::{
     extract::{Form, State},
     http::StatusCode,
     response::Redirect,
+    response::IntoResponse,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::{Duration, Utc};
@@ -18,6 +19,7 @@ use password_hash::{
     SaltString,
 };
 
+use crate::family;
 use crate::auth::jwt::JwtConfig;
 
 #[derive(Deserialize)]
@@ -26,7 +28,6 @@ pub struct RegisterForm {
     password: String,
     confirm_password: String,
 }
-
 
 pub async fn register_submit(
     State(pool): State<PgPool>,
@@ -50,22 +51,72 @@ pub async fn register_submit(
         })?
         .to_string();
 
-    let result = sqlx::query!(
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+
+    let user = sqlx::query!(
         r#"
         INSERT INTO users (email, password_hash)
         VALUES ($1, $2)
+        RETURNING id
         "#,
         email,
         password_hash,
     )
-    .execute(&pool)
-    .await;
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        (StatusCode::BAD_REQUEST, format!("Could not create user: {e}"))
+    })?;
 
-    match result {
-        Ok(_) => Ok(Redirect::to("/login")),
-        Err(e) => Err((StatusCode::BAD_REQUEST, format!("Could not create user: {e}"))),
-    }
+    let user_id = user.id;
+
+    let family = sqlx::query!(
+        r#"
+        INSERT INTO families (name, created_by_user)
+        VALUES ($1, $2)
+        RETURNING id
+        "#,
+        format!("{}'s Family", email),
+        user_id,
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Could not create family: {e}"),
+        )
+    })?;
+
+    let family_id = family.id;
+
+    sqlx::query!(
+        r#"
+        INSERT INTO family_members (family_id, user_id, role, status)
+        VALUES ($1, $2, 'adult', 'active')
+        "#,
+        family_id,
+        user_id,
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Could not add family member: {e}"),
+        )
+    })?;
+
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Commit error: {e}")))?;
+
+    Ok(Redirect::to("/login"))
 }
+
 
 #[derive(Deserialize)]
 pub struct LoginForm {

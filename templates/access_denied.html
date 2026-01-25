@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+	<head>
+		<meta charset="UTF-8">
+		<title>Access Denied</title>
+		<link rel="stylesheet" href="/static/css/main.css">
+		<script src="/static/js/theme.js" defer></script>
+	</head>
+	<body>
+		<div class ="dark-light">
+      <button type="button" id="theme-toggle">
+        Light mode
+      </button>
+    </div>
+
+		<div class="card">
+			<h1>Access Denied</h1>
+			<p class="subtitle">You don’t have permission to access this feature.</p>
+
+			<p class="hint">
+			Ask an adult in your family group for access.
+			</p>
+
+			<div class="button-row" style="margin-top: 1.5rem;">
+			<form method="get" action="/login" style="width: 100%;">
+					<button type="submit">
+					Return to Login
+					</button>
+			</form>
+			</div>
+		</div>
+	</body>
+</html>
