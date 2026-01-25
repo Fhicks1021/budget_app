@@ -2,13 +2,14 @@ use axum::{
     extract::State,
     response::Html,
     Form,
+    response::Redirect
 };
-use axum::response::Redirect;
 use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use std::fs;
-use crate::auth::require_user;
 use axum_extra::extract::CookieJar;
+use crate::auth::require_user;
+use crate::family::{get_family_context, FamilyRole};
 
 #[derive(Deserialize)]
 pub struct BudgetInput {
@@ -56,7 +57,18 @@ pub async fn handle_budget(
     State(pool): State<PgPool>,
     Form(input): Form<BudgetInput>,
 ) -> Result<Html<String>, Redirect> {
-    let _user_id = require_user(&jar)?;
+    let user_id = require_user(&jar)?;
+
+    let family_ctx = match get_family_context(&pool, user_id).await {
+        Ok(ctx) => ctx,
+        Err(_) => {
+            return Err(Redirect::to("/login"));
+        }
+    };
+
+    if matches!(family_ctx.role, FamilyRole::Dependent) {
+        return Err(Redirect::to("/access-denied"));
+    }
 
     let paycheck = input.paycheck.unwrap_or(0.0);
     let mortgage = input.mortgage.unwrap_or(0.0);
@@ -78,8 +90,22 @@ pub async fn handle_budget(
         remaining,
     };
 
-    if let Err(e) = save_budget_to_db(&pool, &computed).await {
-        eprintln!("Failed to save budget to DB: {e}");
+    if matches!(family_ctx.role, FamilyRole::Adult) {
+        if let Err(e) = save_budget_to_db(
+            &pool,
+            family_ctx.family_id,
+            user_id,
+            &computed,
+        )
+        .await
+        {
+            eprintln!("Failed to save budget to DB: {e}");
+        }
+    } else {
+        eprintln!(
+            "Dependent user {} computed a budget but did not persist",
+            user_id
+        );
     }
 
     let template = fs::read_to_string("templates/budget_result.html")
@@ -97,16 +123,34 @@ pub async fn handle_budget(
     Ok(Html(page))
 }
 
-async fn save_budget_to_db(pool: &PgPool, computed: &ComputedBudget) -> Result<(), sqlx::Error> {
+
+async fn save_budget_to_db(
+    pool: &PgPool,
+    family_id: i32,
+    user_id: i32,
+    computed: &ComputedBudget,
+) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
     let row = sqlx::query(
         r#"
-        INSERT INTO budget (paycheck, mortgage, electric, phone, internet, car_insurance, remaining)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO budget (
+            family_id,
+            user_id,
+            paycheck,
+            mortgage,
+            electric,
+            phone,
+            internet,
+            car_insurance,
+            remaining
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id
         "#,
     )
+    .bind(family_id)
+    .bind(user_id)
     .bind(computed.paycheck)
     .bind(computed.mortgage)
     .bind(computed.electric)
@@ -146,3 +190,4 @@ async fn save_budget_to_db(pool: &PgPool, computed: &ComputedBudget) -> Result<(
     tx.commit().await?;
     Ok(())
 }
+
