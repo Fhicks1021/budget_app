@@ -1,5 +1,7 @@
 mod auth;
 mod routes;
+mod family;
+
 
 use dotenvy::dotenv;
 use sqlx::PgPool;
