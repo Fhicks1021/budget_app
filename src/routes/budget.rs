@@ -8,6 +8,8 @@ use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use std::fs;
 use axum_extra::extract::CookieJar;
+
+use crate::AppState;
 use crate::auth::require_user;
 use crate::family::{get_family_context, FamilyRole};
 
@@ -54,12 +56,13 @@ where
 
 pub async fn handle_budget(
     jar: CookieJar,
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Form(input): Form<BudgetInput>,
 ) -> Result<Html<String>, Redirect> {
+    let pool: &PgPool = &state.db_pool;
     let user_id = require_user(&jar)?;
 
-    let family_ctx = match get_family_context(&pool, user_id).await {
+    let family_ctx = match get_family_context(pool, user_id).await {
         Ok(ctx) => ctx,
         Err(_) => {
             return Err(Redirect::to("/login"));
@@ -92,7 +95,7 @@ pub async fn handle_budget(
 
     if matches!(family_ctx.role, FamilyRole::Adult) {
         if let Err(e) = save_budget_to_db(
-            &pool,
+            pool,
             family_ctx.family_id,
             user_id,
             &computed,

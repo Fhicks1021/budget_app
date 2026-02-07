@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  redis:
+    image: valkey/valkey
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
