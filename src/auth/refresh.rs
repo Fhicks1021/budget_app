@@ -9,11 +9,13 @@ use std::env;
 use rand::{distributions::Alphanumeric, Rng};
 
 use crate::auth::jwt::JwtConfig;
+use crate::AppState;
 
 pub async fn refresh_session(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     jar: CookieJar,
 ) -> Result<(CookieJar, Redirect), Redirect> {
+    let pool: &PgPool = &state.db_pool;
     let refresh_cookie = jar
         .get("refresh_token")
         .ok_or_else(|| Redirect::to("/login"))?;
@@ -28,7 +30,7 @@ pub async fn refresh_session(
         "#,
         old_token,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await
     .map_err(|e| {
         eprintln!("DB error in refresh_session: {e}");
@@ -46,7 +48,7 @@ pub async fn refresh_session(
             r#"DELETE FROM user_sessions WHERE token = $1"#,
             old_token
         )
-        .execute(&pool)
+        .execute(pool)
         .await;
 
         return Err(Redirect::to("/login"));
@@ -83,7 +85,7 @@ pub async fn refresh_session(
         new_expires_at,
         old_token,
     )
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| {
         eprintln!("DB update error in refresh_session: {e}");
