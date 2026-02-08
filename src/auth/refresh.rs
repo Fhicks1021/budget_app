@@ -1,15 +1,12 @@
-use axum::{
-    extract::State,
-    response::Redirect,
-};
+use axum::{extract::State, response::Redirect};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::Utc;
+use rand::{Rng, distributions::Alphanumeric};
 use sqlx::PgPool;
 use std::env;
-use rand::{distributions::Alphanumeric, Rng};
 
-use crate::auth::jwt::JwtConfig;
 use crate::AppState;
+use crate::auth::jwt::JwtConfig;
 
 pub async fn refresh_session(
     State(state): State<AppState>,
@@ -44,12 +41,9 @@ pub async fn refresh_session(
 
     let now = Utc::now();
     if session.expires_at < now {
-        let _ = sqlx::query!(
-            r#"DELETE FROM user_sessions WHERE token = $1"#,
-            old_token
-        )
-        .execute(pool)
-        .await;
+        let _ = sqlx::query!(r#"DELETE FROM user_sessions WHERE token = $1"#, old_token)
+            .execute(pool)
+            .await;
 
         return Err(Redirect::to("/login"));
     }
@@ -60,12 +54,10 @@ pub async fn refresh_session(
     })?;
     let jwt = JwtConfig::new(jwt_secret);
 
-    let new_access = jwt
-        .encode_access_token(session.user_id)
-        .map_err(|e| {
-            eprintln!("JWT encode failure in refresh_session: {e}");
-            Redirect::to("/login")
-        })?;
+    let new_access = jwt.encode_access_token(session.user_id).map_err(|e| {
+        eprintln!("JWT encode failure in refresh_session: {e}");
+        Redirect::to("/login")
+    })?;
 
     let new_refresh: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)

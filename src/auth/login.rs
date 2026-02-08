@@ -2,28 +2,20 @@ use axum::{
     extract::{Form, State},
     http::StatusCode,
     response::Redirect,
-    response::IntoResponse,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::{Duration, Utc};
+use serde::Deserialize;
 use sqlx::PgPool;
 use std::env;
-use serde::Deserialize;
 
-use rand::{distributions::Alphanumeric, Rng};
-use password_hash::{
-    rand_core::OsRng,
-    PasswordHash,
-    PasswordHasher,
-    PasswordVerifier,
-    SaltString,
-};
-use urlencoding::encode;
 use deadpool_redis::{Pool as RedisPool, redis::AsyncCommands};
+use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng};
+use rand::{Rng, distributions::Alphanumeric};
+use urlencoding::encode;
 
-use crate::auth::JwtConfig;
 use crate::AppState;
-use crate::family;
+use crate::auth::JwtConfig;
 
 #[derive(Deserialize)]
 pub struct RegisterForm {
@@ -72,7 +64,10 @@ pub async fn register_submit(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
-        (StatusCode::BAD_REQUEST, format!("Could not create user: {e}"))
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Could not create user: {e}"),
+        )
     })?;
 
     let user_id = user.id;
@@ -114,21 +109,32 @@ pub async fn register_submit(
         )
     })?;
 
-    tx.commit()
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Commit error: {e}")))?;
+    tx.commit().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Commit error: {e}"),
+        )
+    })?;
 
     Ok(Redirect::to("/login"))
+}
+
+pub fn hash_password(password: &str) -> Result<String, String> {
+    let salt = SaltString::generate(&mut OsRng);
+
+    let password_hash = argon2::Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| format!("Password hashing error: {e}"))?
+        .to_string();
+
+    Ok(password_hash)
 }
 
 fn login_attempts_key(email: &str) -> String {
     format!("login_attempts:{}", email)
 }
 
-async fn is_locked_out(
-    redis_pool: &RedisPool,
-    email: &str,
-) -> Result<bool, Redirect> {
+async fn is_locked_out(redis_pool: &RedisPool, email: &str) -> Result<bool, Redirect> {
     let mut conn = redis_pool.get().await.map_err(|e| {
         eprintln!("Redis pool error in is_locked_out: {e}");
         Redirect::to("/incorrect_login_credentials?email={}")
@@ -140,10 +146,7 @@ async fn is_locked_out(
     Ok(attempts >= 5)
 }
 
-async fn record_failed_attempt(
-    redis_pool: &RedisPool,
-    email: &str,
-) -> Result<i32, Redirect> {
+async fn record_failed_attempt(redis_pool: &RedisPool, email: &str) -> Result<i32, Redirect> {
     let mut conn = redis_pool.get().await.map_err(|e| {
         eprintln!("Redis pool error in record_failed_attempt: {e}");
         Redirect::to("/incorrect_login_credentials")
@@ -166,10 +169,7 @@ async fn record_failed_attempt(
     Ok(attempts)
 }
 
-pub async fn get_lockout_ttl(
-    redis_pool: &RedisPool,
-    email: &str,
-) -> i64 {
+pub async fn get_lockout_ttl(redis_pool: &RedisPool, email: &str) -> i64 {
     let mut conn = match redis_pool.get().await {
         Ok(c) => c,
         Err(e) => {
@@ -208,10 +208,7 @@ pub async fn login_submit(
 
     eprintln!("login attempt for email = {:?}", email);
     if is_locked_out(&state.redis_pool, &email).await? {
-        let loc = format!(
-            "/incorrect_login_credentials?email={}",
-            encode(&email)
-        );
+        let loc = format!("/incorrect_login_credentials?email={}", encode(&email));
         return Err(Redirect::to(&loc));
     }
 
@@ -236,10 +233,7 @@ pub async fn login_submit(
             let attempts = record_failed_attempt(&state.redis_pool, &email).await?;
 
             if attempts >= 5 {
-                let loc = format!(
-                    "/incorrect_login_credentials?email={}",
-                    encode(&email)
-                );
+                let loc = format!("/incorrect_login_credentials?email={}", encode(&email));
                 return Err(Redirect::to(&loc));
             }
 
@@ -247,11 +241,10 @@ pub async fn login_submit(
         }
     };
 
-    let parsed_hash = PasswordHash::new(&user.password_hash)
-        .map_err(|e| {
-            eprintln!("Invalid stored password hash in login_submit: {e}");
-            Redirect::to("/incorrect_login_credentials")
-        })?;
+    let parsed_hash = PasswordHash::new(&user.password_hash).map_err(|e| {
+        eprintln!("Invalid stored password hash in login_submit: {e}");
+        Redirect::to("/incorrect_login_credentials")
+    })?;
 
     if argon2::Argon2::default()
         .verify_password(form.password.as_bytes(), &parsed_hash)
@@ -260,10 +253,7 @@ pub async fn login_submit(
         let attempts = record_failed_attempt(&state.redis_pool, &email).await?;
 
         if attempts >= 5 {
-            let loc = format!(
-                "/incorrect_login_credentials?email={}",
-                encode(&email)
-            );
+            let loc = format!("/incorrect_login_credentials?email={}", encode(&email));
             return Err(Redirect::to(&loc));
         }
 
@@ -276,12 +266,10 @@ pub async fn login_submit(
     })?;
     let jwt = JwtConfig::new(jwt_secret);
 
-    let access_token = jwt
-        .encode_access_token(user.id)
-        .map_err(|e| {
-            eprintln!("JWT encode failure in login_submit: {e}");
-            Redirect::to("/incorrect_login_credentials")
-        })?;
+    let access_token = jwt.encode_access_token(user.id).map_err(|e| {
+        eprintln!("JWT encode failure in login_submit: {e}");
+        Redirect::to("/incorrect_login_credentials")
+    })?;
 
     let refresh_token: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -326,7 +314,6 @@ pub async fn login_submit(
 
     Ok((jar, Redirect::to("/budget")))
 }
-
 
 fn internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
