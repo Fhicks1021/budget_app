@@ -1,16 +1,10 @@
-use axum::{
-    extract::State,
-    response::Redirect,
-};
+use axum::{extract::State, response::Redirect};
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use sqlx::PgPool;
 
 use crate::AppState;
 
-pub async fn logout_submit(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> (CookieJar, Redirect) {
+pub async fn logout_submit(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Redirect) {
     let pool: &PgPool = &state.db_pool;
 
     if let Some(refresh_cookie) = jar.get("refresh_token") {
@@ -33,10 +27,7 @@ pub async fn logout_submit(
     let mut refresh_cookie: Cookie = Cookie::from("refresh_token");
     refresh_cookie.set_path("/");
 
-
-    let jar = jar
-    .remove(access_cookie)
-    .remove(refresh_cookie);
+    let jar = jar.remove(access_cookie).remove(refresh_cookie);
 
     (jar, Redirect::to("/login"))
 }

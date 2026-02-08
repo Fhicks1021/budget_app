@@ -1,17 +1,12 @@
-use axum::{
-    extract::State,
-    response::Html,
-    Form,
-    response::Redirect
-};
+use axum::{Form, extract::State, response::Html, response::Redirect};
+use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use std::fs;
-use axum_extra::extract::CookieJar;
 
 use crate::AppState;
 use crate::auth::require_user;
-use crate::family::{get_family_context, FamilyRole};
+use crate::family::{FamilyRole, get_family_context};
 
 #[derive(Deserialize)]
 pub struct BudgetInput {
@@ -94,14 +89,7 @@ pub async fn handle_budget(
     };
 
     if matches!(family_ctx.role, FamilyRole::Adult) {
-        if let Err(e) = save_budget_to_db(
-            pool,
-            family_ctx.family_id,
-            user_id,
-            &computed,
-        )
-        .await
-        {
+        if let Err(e) = save_budget_to_db(pool, family_ctx.family_id, user_id, &computed).await {
             eprintln!("Failed to save budget to DB: {e}");
         }
     } else {
@@ -120,12 +108,14 @@ pub async fn handle_budget(
         .replace("{{electric}}", &format!("{:.2}", computed.electric))
         .replace("{{phone}}", &format!("{:.2}", computed.phone))
         .replace("{{internet}}", &format!("{:.2}", computed.internet))
-        .replace("{{car_insurance}}", &format!("{:.2}", computed.car_insurance))
+        .replace(
+            "{{car_insurance}}",
+            &format!("{:.2}", computed.car_insurance),
+        )
         .replace("{{remaining}}", &format!("{:.2}", computed.remaining));
 
     Ok(Html(page))
 }
-
 
 async fn save_budget_to_db(
     pool: &PgPool,
@@ -193,4 +183,3 @@ async fn save_budget_to_db(
     tx.commit().await?;
     Ok(())
 }
-

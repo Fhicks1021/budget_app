@@ -49,6 +49,7 @@ pub struct FamilyContext {
     pub role: FamilyRole,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum FamilyError {
     NotInFamily,
@@ -61,10 +62,7 @@ impl From<sqlx::Error> for FamilyError {
     }
 }
 
-pub async fn get_family_context(
-    pool: &PgPool,
-    user_id: i32,
-) -> Result<FamilyContext, FamilyError> {
+pub async fn get_family_context(pool: &PgPool, user_id: i32) -> Result<FamilyContext, FamilyError> {
     let member: Option<FamilyMember> = sqlx::query_as::<_, FamilyMember>(
         r#"
         SELECT id, family_id, user_id, role, status, joined_at
@@ -81,8 +79,7 @@ pub async fn get_family_context(
 
     let member = member.ok_or(FamilyError::NotInFamily)?;
 
-    let role = FamilyRole::from_str(&member.role)
-        .ok_or(FamilyError::NotInFamily)?;
+    let role = FamilyRole::from_str(&member.role).ok_or(FamilyError::NotInFamily)?;
 
     Ok(FamilyContext {
         family_id: member.family_id,
